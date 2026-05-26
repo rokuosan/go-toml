@@ -108,7 +108,7 @@ func (p *parser) parse() (Document, error) {
 				return nil, err
 			}
 		default:
-			if err := p.parseKeyValueInto(p.current, true); err != nil {
+			if err := p.parseKeyValueInto(p.current); err != nil {
 				return nil, err
 			}
 		}
@@ -170,7 +170,7 @@ func (p *parser) parseTable() error {
 	return nil
 }
 
-func (p *parser) parseKeyValueInto(dst map[string]any, markTables bool) error {
+func (p *parser) parseKeyValueInto(dst map[string]any) error {
 	key, err := p.parseKey()
 	if err != nil {
 		return err
@@ -184,7 +184,7 @@ func (p *parser) parseKeyValueInto(dst map[string]any, markTables bool) error {
 	if err != nil {
 		return err
 	}
-	return p.setValue(dst, key, val, markTables)
+	return p.setValue(dst, key, val)
 }
 
 func (p *parser) parseKey() ([]string, error) {
@@ -458,7 +458,10 @@ func (p *parser) parseHexRune(n int) (rune, error) {
 		}
 	}
 	p.pos += n
-	v, _ := strconv.ParseInt(s, 16, 32)
+	v, err := strconv.ParseInt(s, 16, 32)
+	if err != nil {
+		return 0, p.err("invalid unicode escape")
+	}
 	r := rune(v)
 	if !utf8.ValidRune(r) || (r >= 0xD800 && r <= 0xDFFF) {
 		return 0, p.err("invalid unicode scalar")
@@ -474,7 +477,7 @@ func (p *parser) consumeEscapedNewline() bool {
 	for !p.eof() && (p.peek() == ' ' || p.peek() == '\t') {
 		p.pos++
 	}
-	if !(p.consume("\r\n") || p.consume("\n")) {
+	if !p.consume("\r\n") && !p.consume("\n") {
 		p.pos = save
 		return false
 	}
@@ -482,7 +485,7 @@ func (p *parser) consumeEscapedNewline() bool {
 		for !p.eof() && (p.peek() == ' ' || p.peek() == '\t') {
 			p.pos++
 		}
-		if !(p.consume("\r\n") || p.consume("\n")) {
+		if !p.consume("\r\n") && !p.consume("\n") {
 			break
 		}
 	}
@@ -529,7 +532,7 @@ func (p *parser) parseInlineTable() (map[string]any, error) {
 		return m, nil
 	}
 	for {
-		if err := p.parseKeyValueInto(m, false); err != nil {
+		if err := p.parseKeyValueInto(m); err != nil {
 			return nil, err
 		}
 		p.skipWS()
@@ -559,7 +562,7 @@ func (p *parser) readBareToken() string {
 	return p.input[start:p.pos]
 }
 
-func (p *parser) setValue(dst map[string]any, key []string, val any, markTables bool) error {
+func (p *parser) setValue(dst map[string]any, key []string, val any) error {
 	m := dst
 	for _, part := range key[:len(key)-1] {
 		existing, ok := m[part]

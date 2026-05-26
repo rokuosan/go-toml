@@ -41,7 +41,7 @@ infinite = +inf
 	if got := doc["hex"]; got != int64(0xDEADBEEF) {
 		t.Fatalf("hex = %v", got)
 	}
-	if got := doc["oct"]; got != int64(0755) {
+	if got := doc["oct"]; got != int64(0o755) {
 		t.Fatalf("oct = %v", got)
 	}
 	if got := doc["bin"]; got != int64(13) {
