@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -192,19 +193,43 @@ def format_delta(base: float, head: float) -> str:
 def update_pr_comment(pr_number: int, body: str) -> None:
     repo = os.environ["GITHUB_REPOSITORY"]
     token = os.environ["GITHUB_TOKEN"]
-    base_url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
+    base_url = add_query(
+        f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments",
+        {"per_page": "100"},
+    )
     headers = {
         "Accept": "application/vnd.github+json",
         "Authorization": f"Bearer {token}",
         "X-GitHub-Api-Version": "2022-11-28",
     }
 
-    comments = request_json(base_url, headers=headers)
+    comments = request_json_pages(base_url, headers=headers)
     for comment in comments:
         if COMMENT_MARKER in comment.get("body", ""):
             request_json(comment["url"], method="PATCH", headers=headers, payload={"body": body})
             return
     request_json(base_url, method="POST", headers=headers, payload={"body": body})
+
+
+def request_json_pages(url: str, *, headers: dict[str, str]) -> list[object]:
+    items: list[object] = []
+    next_url: str | None = url
+    while next_url:
+        page, next_url = request_json_page(next_url, headers=headers)
+        if not isinstance(page, list):
+            raise RuntimeError("GitHub API returned a non-list comments response")
+        items.extend(page)
+    return items
+
+
+def request_json_page(url: str, *, headers: dict[str, str]) -> tuple[object, str | None]:
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.load(resp), next_link(resp.headers.get("Link", ""))
+    except urllib.error.HTTPError as err:
+        detail = err.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"GitHub API request failed: {err.code} {detail}") from err
 
 
 def request_json(
@@ -225,6 +250,24 @@ def request_json(
     except urllib.error.HTTPError as err:
         detail = err.read().decode("utf-8", errors="replace")
         raise RuntimeError(f"GitHub API request failed: {err.code} {detail}") from err
+
+
+def next_link(link_header: str) -> str | None:
+    for part in link_header.split(","):
+        url_part, _, rel_part = part.partition(";")
+        if 'rel="next"' not in rel_part:
+            continue
+        url_part = url_part.strip()
+        if url_part.startswith("<") and url_part.endswith(">"):
+            return url_part[1:-1]
+    return None
+
+
+def add_query(url: str, params: dict[str, str]) -> str:
+    parsed = urllib.parse.urlparse(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query.extend(params.items())
+    return urllib.parse.urlunparse(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def git(repo_root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
