@@ -4,7 +4,6 @@ import (
 	"encoding"
 	"fmt"
 	"reflect"
-	"strings"
 )
 
 func assignValue(dst reflect.Value, src any) error {
@@ -139,30 +138,11 @@ func asStringMap(src any) (map[string]any, bool) {
 }
 
 func assignStruct(dst reflect.Value, src map[string]any) error {
-	fields := map[string]int{}
-	t := dst.Type()
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		if f.PkgPath != "" {
-			continue
-		}
-		name := f.Tag.Get("toml")
-		if comma := strings.IndexByte(name, ','); comma >= 0 {
-			name = name[:comma]
-		}
-		if name == "-" {
-			continue
-		}
-		if name == "" {
-			name = f.Name
-		}
-		fields[name] = i
-		fields[strings.ToLower(name)] = i
-	}
+	fields := cachedFields(dst.Type())
 	for k, v := range src {
 		i, ok := fields[k]
 		if !ok {
-			i, ok = fields[strings.ToLower(k)]
+			i, ok = fields[foldName(k)]
 		}
 		if !ok {
 			continue
