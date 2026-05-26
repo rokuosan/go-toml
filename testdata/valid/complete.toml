@@ -1,0 +1,46 @@
+# Top-level values.
+title = "TOML Example"
+enabled = true
+answer = +42
+ratio = -1_234.5e+6
+hex = 0xDE_AD_BE_EF
+oct = 0o755
+bin = 0b1101
+odt = 1979-05-27T07:32:00Z
+ldt = 1979-05-27t07:32:00.999
+ld = 1979-05-27
+lt = 07:32:00.123
+
+basic = "line\nnext\tTabbed"
+literal = 'C:\Users\nodejs\templates'
+multiline = """
+first\
+  second
+"""
+literal_multiline = '''
+one
+''two''
+'''
+
+dotted.key.value = "created through a dotted key"
+"quoted key"."with spaces" = "quoted"
+
+[owner]
+name = "Tom"
+bio = { age = 42, active = true }
+
+[database.settings]
+ports = [
+  8000,
+  8001, # comment
+  8002,
+]
+limits = { cpu = 2, memory = "4GiB", disk = "40GiB" }
+
+[[products]]
+name = "Hammer"
+sku = 738594937
+
+[[products]]
+name = "Nail"
+sku = 284758393
