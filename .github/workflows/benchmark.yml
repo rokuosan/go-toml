@@ -1,0 +1,30 @@
+name: Benchmark
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  benchmark:
+    name: Benchmark comparison
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run benchmark comparison
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/ci/benchmark_pr.py
