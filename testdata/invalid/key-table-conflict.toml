@@ -1,0 +1,3 @@
+server = "localhost"
+[server]
+port = 8080
