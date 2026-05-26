@@ -1,0 +1,17 @@
+title = "Example application"
+enabled = true
+ports = [8080, 8081]
+
+[database]
+host = "db.internal"
+port = 5432
+user = "app"
+password = "secret"
+
+[[services]]
+name = "api"
+url = "https://api.example.com"
+
+[[services]]
+name = "admin"
+url = "https://admin.example.com"
