@@ -40,6 +40,64 @@ func TestMarshalScalars(t *testing.T) {
 	}
 }
 
+func TestMarshalEscapesStringsAsTomlBasicStrings(t *testing.T) {
+	doc := Document{
+		"control":    "nul:\x00 bell:\a vertical:\v",
+		"bad\x00key": "value",
+	}
+	out, err := Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	for _, want := range []string{
+		`control = "nul:\u0000 bell:\u0007 vertical:\u000B"`,
+		`"bad\u0000key" = "value"`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+	parsed, err := Parse(out)
+	if err != nil {
+		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
+	}
+	if parsed["control"] != doc["control"] || parsed["bad\x00key"] != "value" {
+		t.Fatalf("parsed = %#v", parsed)
+	}
+}
+
+func TestMarshalFiniteFloatsRemainTomlFloats(t *testing.T) {
+	doc := Document{
+		"one":  float64(1),
+		"zero": float64(0),
+		"big":  float64(100),
+	}
+	out, err := Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	for _, want := range []string{
+		`one = 1.0`,
+		`zero = 0.0`,
+		`big = 100.0`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+	parsed, err := Parse(out)
+	if err != nil {
+		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
+	}
+	for _, key := range []string{"one", "zero", "big"} {
+		if _, ok := parsed[key].(float64); !ok {
+			t.Fatalf("%s parsed as %T, want float64", key, parsed[key])
+		}
+	}
+}
+
 func TestMarshalStructTables(t *testing.T) {
 	type product struct {
 		Name string
