@@ -1,0 +1,16 @@
+	# tab-indented comment
+
+servers = [
+	"alpha", # first server
+	"beta",
+	# disabled for now
+]
+
+settings = { enabled = true, ports = [8000, 8001] }
+
+[database]
+host = "localhost"	# tab before comment
+ports = [
+  8000,
+  8001,
+]

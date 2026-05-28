@@ -1,0 +1,21 @@
+# Preserve key spelling, quoting, and table header layout.
+"quoted key"   =   "value" # spaced equals
+'literal.key' = "not dotted"
+dotted . key . value = "dotted with spaces"
+
+[ owner . profile ] # spaced table header
+name = "Tom"
+
+["quoted.table"]
+x = 1
+
+[quoted.table]
+y = 2
+
+[[ products ]]
+name = "Hammer"
+sku = 738594937
+
+[[ products ]]
+name = "Nail"
+sku = 284758393
