@@ -155,6 +155,9 @@ func encodeScalarValue(v reflect.Value) (string, error) {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return strconv.FormatInt(v.Int(), 10), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if v.Uint() > math.MaxInt64 {
+			return "", fmt.Errorf("unsigned integer %d exceeds TOML integer range", v.Uint())
+		}
 		return strconv.FormatUint(v.Uint(), 10), nil
 	case reflect.Float32, reflect.Float64:
 		return encodeFloat(v.Float()), nil
@@ -298,6 +301,9 @@ func isTableValue(v reflect.Value) bool {
 	if !v.IsValid() {
 		return false
 	}
+	if isTextMarshalerValue(v) {
+		return false
+	}
 	if _, err := encodeStructScalar(v); err == nil {
 		return false
 	}
@@ -312,7 +318,12 @@ func isArrayTableValue(v reflect.Value) bool {
 	if v.Len() == 0 {
 		return false
 	}
-	return isTableValue(v.Index(0))
+	for i := 0; i < v.Len(); i++ {
+		if !isTableValue(v.Index(i)) {
+			return false
+		}
+	}
+	return true
 }
 
 func indirectValue(v reflect.Value) reflect.Value {
@@ -323,4 +334,18 @@ func indirectValue(v reflect.Value) reflect.Value {
 		v = v.Elem()
 	}
 	return v
+}
+
+func isTextMarshalerValue(v reflect.Value) bool {
+	if v.CanInterface() {
+		if _, ok := v.Interface().(encoding.TextMarshaler); ok {
+			return true
+		}
+	}
+	if v.CanAddr() {
+		if _, ok := v.Addr().Interface().(encoding.TextMarshaler); ok {
+			return true
+		}
+	}
+	return false
 }

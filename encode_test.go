@@ -1,11 +1,20 @@
 package toml
 
 import (
+	"math"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 )
+
+type textScalar struct {
+	value string
+}
+
+func (v textScalar) MarshalText() ([]byte, error) {
+	return []byte(v.value), nil
+}
 
 func TestMarshalScalars(t *testing.T) {
 	doc := Document{
@@ -108,5 +117,55 @@ func TestMarshalQuotedKeys(t *testing.T) {
 func TestMarshalRejectsUnsupportedTopLevel(t *testing.T) {
 	if _, err := Marshal("value"); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestMarshalTextMarshalerStructAsScalar(t *testing.T) {
+	out, err := Marshal(struct {
+		Value textScalar
+		List  []textScalar
+	}{
+		Value: textScalar{value: "scalar"},
+		List:  []textScalar{{value: "one"}, {value: "two"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	for _, want := range []string{
+		`Value = "scalar"`,
+		`List = ["one", "two"]`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+	if _, err := Parse(out); err != nil {
+		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
+	}
+}
+
+func TestMarshalRejectsUintOutsideTomlRange(t *testing.T) {
+	_, err := Marshal(Document{"value": uint64(math.MaxInt64) + 1})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestMarshalMixedArrayWithInlineTable(t *testing.T) {
+	out, err := Marshal(Document{
+		"items": []any{
+			map[string]any{"name": "Hammer"},
+			"loose",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(out); !strings.Contains(got, `items = [{ name = "Hammer" }, "loose"]`) {
+		t.Fatalf("unexpected output:\n%s", got)
+	}
+	if _, err := Parse(out); err != nil {
+		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
 	}
 }
