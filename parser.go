@@ -1,6 +1,10 @@
 package toml
 
-import "unicode/utf8"
+import (
+	"strconv"
+	"strings"
+	"unicode/utf8"
+)
 
 type parser struct {
 	input          string
@@ -8,6 +12,16 @@ type parser struct {
 	doc            Document
 	current        map[string]any
 	explicitTables map[string]bool
+}
+
+func tablePath(key []string) string {
+	var b strings.Builder
+	for _, part := range key {
+		b.WriteString(strconv.Itoa(len(part)))
+		b.WriteByte(':')
+		b.WriteString(part)
+	}
+	return b.String()
 }
 
 func newParser(input string) *parser {

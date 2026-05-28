@@ -1,7 +1,5 @@
 package toml
 
-import "strings"
-
 func (p *parser) parseTable() error {
 	array := p.consume("[[")
 	if !array && !p.consume("[") {
@@ -27,7 +25,7 @@ func (p *parser) parseTable() error {
 	if !p.consume("]") {
 		return p.err("expected ]")
 	}
-	path := strings.Join(key, ".")
+	path := tablePath(key)
 	if p.explicitTables[path] {
 		return p.err("table already defined")
 	}
