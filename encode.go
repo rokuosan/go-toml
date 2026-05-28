@@ -67,6 +67,14 @@ func (e *encoder) writeTable(path []string, v reflect.Value, header, array bool)
 		if !fv.IsValid() {
 			continue
 		}
+		if array && (isTableValue(fv) || isArrayTableValue(fv)) {
+			value, err := encodeArrayTableFieldValue(fv)
+			if err != nil {
+				return fmt.Errorf("toml: field %s: %w", field.name, err)
+			}
+			fmt.Fprintf(&e.b, "%s = %s\n", quoteKey(field.name), value)
+			continue
+		}
 		if isArrayTableValue(fv) {
 			arrayTables = append(arrayTables, field)
 			continue
@@ -96,6 +104,13 @@ func (e *encoder) writeTable(path []string, v reflect.Value, header, array bool)
 		}
 	}
 	return nil
+}
+
+func encodeArrayTableFieldValue(v reflect.Value) (string, error) {
+	if isArrayTableValue(v) {
+		return encodeArray(v)
+	}
+	return encodeInlineTable(v)
 }
 
 func tableFields(v reflect.Value) ([]encodeField, error) {
@@ -286,7 +301,7 @@ func quoteString(s string) string {
 		case '\r':
 			b.WriteString(`\r`)
 		default:
-			if r < 0x20 {
+			if r < 0x20 || r == 0x7f {
 				fmt.Fprintf(&b, `\u%04X`, r)
 				continue
 			}

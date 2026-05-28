@@ -42,8 +42,9 @@ func TestMarshalScalars(t *testing.T) {
 
 func TestMarshalEscapesStringsAsTomlBasicStrings(t *testing.T) {
 	doc := Document{
-		"control":    "nul:\x00 bell:\a vertical:\v",
+		"control":    "nul:\x00 bell:\a vertical:\v del:\x7f",
 		"bad\x00key": "value",
+		"bad\x7fkey": "value",
 	}
 	out, err := Marshal(doc)
 	if err != nil {
@@ -51,8 +52,9 @@ func TestMarshalEscapesStringsAsTomlBasicStrings(t *testing.T) {
 	}
 	text := string(out)
 	for _, want := range []string{
-		`control = "nul:\u0000 bell:\u0007 vertical:\u000B"`,
+		`control = "nul:\u0000 bell:\u0007 vertical:\u000B del:\u007F"`,
 		`"bad\u0000key" = "value"`,
+		`"bad\u007Fkey" = "value"`,
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in:\n%s", want, text)
@@ -62,7 +64,7 @@ func TestMarshalEscapesStringsAsTomlBasicStrings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
 	}
-	if parsed["control"] != doc["control"] || parsed["bad\x00key"] != "value" {
+	if parsed["control"] != doc["control"] || parsed["bad\x00key"] != "value" || parsed["bad\x7fkey"] != "value" {
 		t.Fatalf("parsed = %#v", parsed)
 	}
 }
@@ -152,6 +154,64 @@ func TestMarshalStructTables(t *testing.T) {
 	}
 	if got := products[1].(map[string]any)["Name"]; got != "Nail" {
 		t.Fatalf("Products[1].Name = %v", got)
+	}
+}
+
+func TestMarshalArrayTableNestedTablesAsInlineValues(t *testing.T) {
+	type dimension struct {
+		Length int64
+		Width  int64
+	}
+	type product struct {
+		Name       string
+		Dimension  dimension
+		Variations []dimension
+	}
+	out, err := Marshal(struct {
+		Products []product
+	}{
+		Products: []product{
+			{
+				Name:       "Hammer",
+				Dimension:  dimension{Length: 10, Width: 4},
+				Variations: []dimension{{Length: 8, Width: 3}},
+			},
+			{
+				Name:       "Nail",
+				Dimension:  dimension{Length: 2, Width: 1},
+				Variations: []dimension{{Length: 3, Width: 1}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(out)
+	for _, want := range []string{
+		`[[Products]]`,
+		`Dimension = { Length = 10, Width = 4 }`,
+		`Variations = [{ Length = 8, Width = 3 }]`,
+		`Dimension = { Length = 2, Width = 1 }`,
+		`Variations = [{ Length = 3, Width = 1 }]`,
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q in:\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, `[Products.Dimension]`) {
+		t.Fatalf("unexpected nested table header in array table:\n%s", text)
+	}
+	parsed, err := Parse(out)
+	if err != nil {
+		t.Fatalf("encoded TOML did not parse: %v\n%s", err, out)
+	}
+	products := parsed["Products"].([]any)
+	if len(products) != 2 {
+		t.Fatalf("products length = %d", len(products))
+	}
+	first := products[0].(map[string]any)
+	if got := first["Dimension"].(map[string]any)["Length"]; got != int64(10) {
+		t.Fatalf("Products[0].Dimension.Length = %v", got)
 	}
 }
 
