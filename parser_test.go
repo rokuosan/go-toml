@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-//go:embed testdata/valid/*.toml testdata/invalid/*.toml
+//go:embed testdata/valid/*.toml testdata/invalid/*.toml testdata/document/*.toml
 var parserFixtures embed.FS
 
 func TestParseValidFixtures(t *testing.T) {
@@ -124,5 +124,18 @@ func TestParseNewlineHandling(t *testing.T) {
 	}
 	if _, err := ParseString("a = 1\rb = 2"); err == nil {
 		t.Fatal("expected bare carriage return to fail")
+	}
+}
+
+func TestParseDistinguishesQuotedDottedTableKeys(t *testing.T) {
+	doc, err := ParseString("[\"a.b\"]\nx = 1\n\n[a.b]\ny = 2\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := doc["a.b"].(map[string]any)["x"]; got != int64(1) {
+		t.Fatalf(`"a.b".x = %v`, got)
+	}
+	if got := doc["a"].(map[string]any)["b"].(map[string]any)["y"]; got != int64(2) {
+		t.Fatalf("a.b.y = %v", got)
 	}
 }

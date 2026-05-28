@@ -1,0 +1,19 @@
+# A human-authored TOML document with layout worth preserving.
+
+title   = "TOML Example" # inline comment
+ports = [
+  8000,
+  8001, # array comment
+]
+
+[owner]
+name = "Tom"
+bio = { age = 42, active = true }
+
+[[products]]
+name = "Hammer"
+sku = 738594937
+
+[[products]]
+name = "Nail"
+sku = 284758393
