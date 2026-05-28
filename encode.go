@@ -118,6 +118,7 @@ func tableFields(v reflect.Value) ([]encodeField, error) {
 	case reflect.Struct:
 		t := v.Type()
 		fields := make([]encodeField, 0, t.NumField())
+		seen := map[string]struct{}{}
 		for i := 0; i < t.NumField(); i++ {
 			sf := t.Field(i)
 			if sf.PkgPath != "" {
@@ -127,6 +128,10 @@ func tableFields(v reflect.Value) ([]encodeField, error) {
 			if name == "-" {
 				continue
 			}
+			if _, ok := seen[name]; ok {
+				return nil, fmt.Errorf("duplicate struct field key %q", name)
+			}
+			seen[name] = struct{}{}
 			fields = append(fields, encodeField{name: name, value: v.Field(i)})
 		}
 		return fields, nil
@@ -152,6 +157,9 @@ func encodeScalarValue(v reflect.Value) (string, error) {
 		return "", fmt.Errorf("nil has no TOML representation")
 	}
 	if v.Kind() == reflect.Struct {
+		if isStructScalarType(v) {
+			return encodeStructScalar(v)
+		}
 		if value, err := encodeStructScalar(v); err == nil {
 			return value, nil
 		}
@@ -243,9 +251,23 @@ func encodeStructScalar(v reflect.Value) (string, error) {
 		return v.Interface().(LocalDate).Format("2006-01-02"), nil
 	}
 	if v.Type() == reflect.TypeOf(LocalTime{}) {
-		return formatLocalTime(v.Interface().(LocalTime).Duration), nil
+		return formatValidLocalTime(v.Interface().(LocalTime).Duration)
 	}
 	return "", fmt.Errorf("unsupported value type %s", v.Type())
+}
+
+func isStructScalarType(v reflect.Value) bool {
+	return v.Type() == reflect.TypeOf(time.Time{}) ||
+		v.Type() == reflect.TypeOf(LocalDateTime{}) ||
+		v.Type() == reflect.TypeOf(LocalDate{}) ||
+		v.Type() == reflect.TypeOf(LocalTime{})
+}
+
+func formatValidLocalTime(d time.Duration) (string, error) {
+	if d < 0 || d >= 24*time.Hour {
+		return "", fmt.Errorf("local time %s is outside 00:00:00 to 23:59:59.999999999", d)
+	}
+	return formatLocalTime(d), nil
 }
 
 func encodeTextMarshaler(v reflect.Value) (string, bool, error) {
@@ -350,7 +372,7 @@ func isTableValue(v reflect.Value) bool {
 	if isTextMarshalerValue(v) {
 		return false
 	}
-	if _, err := encodeStructScalar(v); err == nil {
+	if v.Kind() == reflect.Struct && isStructScalarType(v) {
 		return false
 	}
 	return v.Kind() == reflect.Struct || v.Kind() == reflect.Map

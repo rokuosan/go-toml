@@ -238,6 +238,22 @@ func TestMarshalRejectsUnsupportedTopLevel(t *testing.T) {
 	}
 }
 
+func TestMarshalRejectsDuplicateStructKeys(t *testing.T) {
+	_, err := Marshal(struct {
+		First  string `toml:"value"`
+		Second string `toml:"value"`
+	}{
+		First:  "one",
+		Second: "two",
+	})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), `duplicate struct field key "value"`) {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestMarshalTextMarshalerStructAsScalar(t *testing.T) {
 	out, err := Marshal(struct {
 		Value textScalar
@@ -267,6 +283,21 @@ func TestMarshalRejectsUintOutsideTomlRange(t *testing.T) {
 	_, err := Marshal(Document{"value": uint64(math.MaxInt64) + 1})
 	if err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestMarshalRejectsInvalidLocalTime(t *testing.T) {
+	for _, value := range []LocalTime{
+		{Duration: -time.Nanosecond},
+		{Duration: 24 * time.Hour},
+	} {
+		_, err := Marshal(Document{"value": value})
+		if err == nil {
+			t.Fatalf("expected error for %v", value.Duration)
+		}
+		if !strings.Contains(err.Error(), "outside 00:00:00") {
+			t.Fatalf("error = %v", err)
+		}
 	}
 }
 
