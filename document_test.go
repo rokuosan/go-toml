@@ -32,6 +32,37 @@ func TestParseDocumentRoundTripFixtures(t *testing.T) {
 	}
 }
 
+func TestParseDocumentRoundTripCRLF(t *testing.T) {
+	input := "# comment\r\n\r\n[server]\r\nport   = 8000 # keep\r\n"
+	doc, err := ParseDocumentString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := doc.String(); got != input {
+		t.Fatalf("String() changed CRLF source:\n%q", got)
+	}
+	nodes := doc.Nodes()
+	if len(nodes) != 4 {
+		t.Fatalf("node count = %d, want 4: %#v", len(nodes), nodes)
+	}
+	for i, node := range nodes {
+		if node.Raw != input[node.Start:node.End] {
+			t.Fatalf("nodes[%d].Raw does not match span", i)
+		}
+	}
+}
+
+func TestParseDocumentRoundTripTrailingWhitespace(t *testing.T) {
+	input := "title = \"Example\"  \n\t# comment with leading tab  \n"
+	doc, err := ParseDocumentString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := doc.String(); got != input {
+		t.Fatalf("String() changed trailing whitespace:\n%q", got)
+	}
+}
+
 func TestParseDocumentAcceptsValidFixtures(t *testing.T) {
 	files, err := fs.Glob(parserFixtures, "testdata/valid/*.toml")
 	if err != nil {

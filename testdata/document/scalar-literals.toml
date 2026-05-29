@@ -1,0 +1,22 @@
+# Preserve literal spellings for scalar values.
+decimal = 1_000
+hex = 0xDEADBEEF
+octal = 0o755
+binary = 0b1101_0010
+float = +1_234.500e-2
+positive_inf = +inf
+not_a_number = -nan
+local_date = 2026-05-28
+local_time = 07:32:00.123
+local_datetime = 2026-05-28 07:32:00.123
+offset_datetime = 2026-05-28T07:32:00.123+09:00
+basic = "line\nnext"
+literal = 'C:\Users\name'
+multiline_basic = """
+first\
+  second
+"""
+multiline_literal = '''
+one
+''two''
+'''
