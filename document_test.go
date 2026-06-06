@@ -252,6 +252,29 @@ func TestSyntaxDocumentSetPreservesSurroundingFormatting(t *testing.T) {
 	}
 }
 
+func TestSyntaxDocumentSetScalarUnderSingleArrayTable(t *testing.T) {
+	input := "[[products]]\nname = \"Hammer\"\n"
+	doc, err := ParseDocumentString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Set("products.name", "Saw"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := doc.String(), "[[products]]\nname = \"Saw\"\n"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	products := doc.Document()["products"].([]any)
+	product := products[0].(map[string]any)
+	if got := product["name"]; got != "Saw" {
+		t.Fatalf("products[0].name = %v", got)
+	}
+	nodes := doc.Nodes()
+	if got := nodes[1].Value; got != "Saw" {
+		t.Fatalf("node value = %v", got)
+	}
+}
+
 func TestSyntaxDocumentSetScalarTypes(t *testing.T) {
 	doc, err := ParseDocumentString(`
 title = "old"

@@ -259,7 +259,7 @@ func isScalarDocumentValue(v any) bool {
 func (d *SyntaxDocument) valueAtPath(path []string) any {
 	var current any = map[string]any(d.doc)
 	for _, part := range path {
-		m, ok := current.(map[string]any)
+		m, ok := singleDocumentMap(current)
 		if !ok {
 			return nil
 		}
@@ -269,9 +269,12 @@ func (d *SyntaxDocument) valueAtPath(path []string) any {
 }
 
 func setDocumentValue(doc Document, path []string, value any) error {
-	m := map[string]any(doc)
+	m, ok := singleDocumentMap(map[string]any(doc))
+	if !ok {
+		return fmt.Errorf("toml: path %s not found", strings.Join(path, "."))
+	}
 	for _, part := range path[:len(path)-1] {
-		next, ok := m[part].(map[string]any)
+		next, ok := singleDocumentMap(m[part])
 		if !ok {
 			return fmt.Errorf("toml: path %s not found", strings.Join(path, "."))
 		}
@@ -279,4 +282,19 @@ func setDocumentValue(doc Document, path []string, value any) error {
 	}
 	m[path[len(path)-1]] = value
 	return nil
+}
+
+func singleDocumentMap(v any) (map[string]any, bool) {
+	switch value := v.(type) {
+	case map[string]any:
+		return value, true
+	case []any:
+		if len(value) != 1 {
+			return nil, false
+		}
+		m, ok := value[0].(map[string]any)
+		return m, ok
+	default:
+		return nil, false
+	}
 }
