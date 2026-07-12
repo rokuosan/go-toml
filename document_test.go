@@ -4,7 +4,9 @@ import (
 	"io/fs"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseDocumentRoundTripFixtures(t *testing.T) {
@@ -222,5 +224,131 @@ func TestParseDocumentRejectsInvalidToml(t *testing.T) {
 	}
 	if _, err := ParseDocument([]byte{0xff}); err == nil {
 		t.Fatal("expected invalid UTF-8 error")
+	}
+}
+
+func TestSyntaxDocumentSetPreservesSurroundingFormatting(t *testing.T) {
+	input := "# server settings\n[server]\nport   = 8000 # keep this comment\n"
+	doc, err := ParseDocumentString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Set("server.port", 9000); err != nil {
+		t.Fatal(err)
+	}
+	want := "# server settings\n[server]\nport   = 9000 # keep this comment\n"
+	if got := doc.String(); got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	if got := doc.Document()["server"].(map[string]any)["port"]; got != int64(9000) {
+		t.Fatalf("server.port = %v", got)
+	}
+	nodes := doc.Nodes()
+	if got := nodes[2].Raw; got != "port   = 9000 # keep this comment\n" {
+		t.Fatalf("raw node = %q", got)
+	}
+	if got := nodes[2].RawValue; got != "9000" {
+		t.Fatalf("raw value = %q", got)
+	}
+}
+
+func TestSyntaxDocumentSetScalarUnderSingleArrayTable(t *testing.T) {
+	input := "[[products]]\nname = \"Hammer\"\n"
+	doc, err := ParseDocumentString(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Set("products.name", "Saw"); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := doc.String(), "[[products]]\nname = \"Saw\"\n"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+	products := doc.Document()["products"].([]any)
+	product := products[0].(map[string]any)
+	if got := product["name"]; got != "Saw" {
+		t.Fatalf("products[0].name = %v", got)
+	}
+	nodes := doc.Nodes()
+	if got := nodes[1].Value; got != "Saw" {
+		t.Fatalf("node value = %v", got)
+	}
+}
+
+func TestSyntaxDocumentSetScalarTypes(t *testing.T) {
+	doc, err := ParseDocumentString(`
+title = "old"
+enabled = false
+answer = 1
+ratio = 1.0
+created = 2026-05-28T07:32:00Z
+date = 2026-05-28
+time = 07:32:00
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := time.Date(2026, 5, 29, 12, 34, 56, 0, time.UTC)
+	updates := map[string]any{
+		"title":   "new\nline",
+		"enabled": true,
+		"answer":  int64(42),
+		"ratio":   float64(2),
+		"created": created,
+		"date":    LocalDate{Time: created},
+		"time":    LocalTime{Duration: 8*time.Hour + 15*time.Minute},
+	}
+	for path, value := range updates {
+		if err := doc.Set(path, value); err != nil {
+			t.Fatalf("Set(%q): %v", path, err)
+		}
+	}
+	for _, want := range []string{
+		`title = "new\nline"`,
+		`enabled = true`,
+		`answer = 42`,
+		`ratio = 2.0`,
+		`created = 2026-05-29T12:34:56Z`,
+		`date = 2026-05-29`,
+		`time = 08:15:00`,
+	} {
+		if got := doc.String(); !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if _, err := ParseDocumentString(doc.String()); err != nil {
+		t.Fatalf("updated document did not parse: %v\n%s", err, doc.String())
+	}
+}
+
+func TestSyntaxDocumentSetPathForQuotedDottedKey(t *testing.T) {
+	doc, err := ParseDocumentString("\"server.port\" = 8000\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.SetPath([]string{"server.port"}, 9000); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := doc.String(), "\"server.port\" = 9000\n"; got != want {
+		t.Fatalf("String() = %q, want %q", got, want)
+	}
+}
+
+func TestSyntaxDocumentSetRejectsMissingAmbiguousAndNonScalarPaths(t *testing.T) {
+	doc, err := ParseDocumentString("items = [1, 2]\n[[products]]\nname = \"Hammer\"\n[[products]]\nname = \"Nail\"\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := doc.Set("missing", "value"); err == nil {
+		t.Fatal("expected missing path error")
+	}
+	if err := doc.Set("items", 3); err == nil {
+		t.Fatal("expected non-scalar path error")
+	}
+	if err := doc.Set("products.name", "Saw"); err == nil {
+		t.Fatal("expected ambiguous path error")
+	}
+	if err := doc.Set("items", []int{3}); err == nil {
+		t.Fatal("expected non-scalar value error")
 	}
 }
